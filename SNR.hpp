@@ -75,6 +75,51 @@ void setBorder(int border)
 	b = border ;
 }
 
+/* Requires a MetricClass object. This object must have two methods:
+ *     void operator(vector pixelA, vector pixelB)
+ *     dict Statistics() const
+ *
+ * The operator accumulate statistics between images.
+ * The statistics return a dictionnary of couple type and value.
+ */
+template<class MetricClass>
+float Metric(const std::string& query, const std::string& ref) {
+
+   // Open files
+   auto qryImg = LoadImage(query);
+   auto refImg = LoadImage(ref);
+
+   // Check if the images are coherent
+   // Width, Height, and Number of channels must match
+   if(qryImg.width        != refImg.width        ||
+      qryImg.height       != refImg.height       ||
+      qryImg.num_channels != refImg.num_channels) {
+      throw ExceptionEXR(ref + std::string(" and ") + ref,
+                         std::string("Files do not match"));
+   }
+
+   // Create the metric object
+   MetricClass metric;
+   std::vector pixelQry, pixelImg;
+   pixelQry.reserve(qryImg.num_channels);
+   pixelRef.reserve(qryImg.num_channels);
+
+   // Loop over the pixels and perform a metric between the query
+   // and the reference pixel.
+   const int N = qryImg.width * qryImg.height;
+   const int channel = 0;
+   for(int i=0; i<N; ++i) {
+      for(int channel=0; channel<qryImg.num_channels; ++channel) {
+         pixelQry[k] = float(qryImg.images[channel][i]);
+         pixelRef[k] = float(refImg.images[channel][i]);
+      }
+
+      metric(pixelQry, pixelRef);
+   }
+
+   return metric.Statistics();
+}
+
 float SNR(const string& image, const string& reference)
 {
 	int W, H ;
