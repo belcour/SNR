@@ -4,12 +4,14 @@
 #include <cstdlib>
 #include <cmath>
 #include <exception>
+using namespace std;
 
 // Include TinyEXR
 #define TINYEXR_IMPLEMENTATION
 #include <tinyexr/tinyexr.h>
 
-using namespace std ;
+// Include BOOST
+#include <boost/log/trivial.hpp>
 
 /* Deprecated: Old version of loading EXR images.
  */
@@ -79,17 +81,15 @@ float SNR(const string& image, const string& reference)
 	float *img1, *img2 ;
 
    img1 = loadImage(reference, W, H);
-	if(img1 == nullptr)
-	{
-		cerr << "Unable to load the first image" << endl ;
+	if(img1 == nullptr) {
+		BOOST_LOG_TRIVIAL(error) << "Unable to load the reference image"
 		return 0 ;
 	}
 
 	int Wtemp, Htemp ;
    img2 = loadImage(image, Wtemp, Htemp);
-	if(img2 == nullptr || W != Wtemp || H != Htemp)
-	{
-		cerr << "Unable to load the first image" << endl ;
+	if(img2 == nullptr || W != Wtemp || H != Htemp) {
+		BOOST_LOG_TRIVIAL(error) << "Unable to load the query image";
 		return 0 ;
 	}
 
@@ -97,17 +97,26 @@ float SNR(const string& image, const string& reference)
 	float signal = 0.0f ;
 	float smax   = 0.0f ;
 	for(int i=b; i<W-b; ++i)
-		for(int j=b; j<H-b; ++j)
-		{
-			error  += pow(img2[(i + W*j)*4+0] - img1[(i + W*j)*4+0], 2) ;
-			error  += pow(img2[(i + W*j)*4+1] - img1[(i + W*j)*4+1], 2) ;
-			error  += pow(img2[(i + W*j)*4+2] - img1[(i + W*j)*4+2], 2) ;
-			signal += pow(img1[(i + W*j)*4+0], 2) ;
-			signal += pow(img1[(i + W*j)*4+1], 2) ;
-			signal += pow(img1[(i + W*j)*4+2], 2) ;
-			smax = fmax(img1[(i+j*W)*4+0], smax) ;
-			smax = fmax(img1[(i+j*W)*4+1], smax) ;
-			smax = fmax(img1[(i+j*W)*4+2], smax) ;
+		for(int j=b; j<H-b; ++j) {
+
+         const int index = (i + W*j)*4;
+         if(isnan(img1[index+0]) || isnan(img2[index+0]) ||
+            isnan(img1[index+1]) || isnan(img2[index+1]) ||
+            isnan(img1[index+2]) || isnan(img2[index+2])) {
+            BOOST_LOG_TRIVIAL(warning) << "# DEBUG > Detecting a NaN! Skipping pixel ("
+                                       << i << ", " << j << ")";
+            continue;
+         }
+
+			error  += pow(img2[index+0] - img1[index+0], 2) ;
+			error  += pow(img2[index+1] - img1[index+1], 2) ;
+			error  += pow(img2[index+2] - img1[index+2], 2) ;
+			signal += pow(img1[index+0], 2) ;
+			signal += pow(img1[index+1], 2) ;
+			signal += pow(img1[index+2], 2) ;
+			smax = fmax(img1[index+0], smax) ;
+			smax = fmax(img1[index+1], smax) ;
+			smax = fmax(img1[index+2], smax) ;
 		}
 	error  /= (float)((W-2*b)*(H-2*b)) ;
 	signal /= (float)((W-2*b)*(H-2*b)) ;
@@ -133,39 +142,36 @@ float RMSE(const string& image, const string& reference)
 	float *img1, *img2 ;
 
    img1 = loadImage(reference, W, H);
-	if(img1 == nullptr)
-	{
-		cerr << "Unable to load the first image" << endl ;
+	if(img1 == nullptr) {
+		BOOST_LOG_TRIVIAL(error) << "Unable to load the reference image";
 		return 0 ;
 	}
 
 	int Wtemp, Htemp ;
    img2 = loadImage(image, Wtemp, Htemp);
-	if(img2 == nullptr || W != Wtemp || H != Htemp)
-	{
-		cerr << "Unable to load the first image" << endl ;
+	if(img2 == nullptr || W != Wtemp || H != Htemp) {
+		BOOST_LOG_TRIVIAL(error) << "Unable to load the query image";
 		return 0 ;
 	}
 
 	double error_max  = 0.0 ;
 	double error_mean = 0.0 ;
 	for(int i=0; i<W; ++i)
-		for(int j=0; j<H; ++j)
-		{
-         const int index = (i + W*j)*3;
+		for(int j=0; j<H; ++j) {
+
+         const int index = (i + W*j)*4;
          if(isnan(img1[index+0]) || isnan(img2[index+0]) ||
             isnan(img1[index+1]) || isnan(img2[index+1]) ||
-            isnan(img1[index+2]) || isnan(img2[index+2]))
-         {
-            std::cout << "# DEBUG > Detecting a NaN! Skipping pixel ("
-                      << i << ", " << j << ")" << std::endl;
+            isnan(img1[index+2]) || isnan(img2[index+2])) {
+            BOOST_LOG_TRIVIAL(warning) << "# DEBUG > Detecting a NaN! Skipping pixel ("
+                                       << i << ", " << j << ")";
             continue;
          }
 
 			float pix_error = 0.0;
-         pix_error += pow(img2[(i + W*j)*4+0] - img1[(i + W*j)*4+0], 2);
-			pix_error += pow(img2[(i + W*j)*4+1] - img1[(i + W*j)*4+1], 2);
-			pix_error += pow(img2[(i + W*j)*4+2] - img1[(i + W*j)*4+2], 2);
+         pix_error += pow(img2[index+0] - img1[index+0], 2);
+			pix_error += pow(img2[index+1] - img1[index+1], 2);
+			pix_error += pow(img2[index+2] - img1[index+2], 2);
          pix_error /= 3;
 
 			error_max  =  fmax(pix_error, error_max) ;
