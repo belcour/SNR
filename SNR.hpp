@@ -82,7 +82,7 @@ float SNR(const string& image, const string& reference)
 
    img1 = loadImage(reference, W, H);
 	if(img1 == nullptr) {
-		BOOST_LOG_TRIVIAL(error) << "Unable to load the reference image"
+		BOOST_LOG_TRIVIAL(error) << "Unable to load the reference image";
 		return 0 ;
 	}
 
