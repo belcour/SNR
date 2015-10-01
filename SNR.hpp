@@ -69,12 +69,14 @@ float SNR(const string& image, const string& reference)
 	const float psnrdb = 10 * (log10(smax*smax) - log10(error)) ;
 	const float snrdb  = 10 * (log10(signal) - log10(error)) ;
 
+   /*
 	cout << "SNR = " << snr << endl ;
 	cout << "SNRdb = " <<  snrdb << " db" << endl ;
 
 	cout << "PSNR = " << psnr << endl ;
 	cout << "PSNRdb = " <<  psnrdb << " db" << endl ;
-	return psnr ;
+	*/
+   return snr;
 } ;
 
 float RMSE(const string& image, const string& reference)
@@ -138,7 +140,8 @@ float RMSE(const string& image, const string& reference)
 	delete[] temp ;
 #endif
 
-	delete[] img1, img2 ;
+   delete[] img1;
+   delete[] img2 ;
 
 	return error_mean ;
 } ;
