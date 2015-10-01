@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cmath>
+#include <exception>
 
 // Include TinyEXR
 #define TINYEXR_IMPLEMENTATION
@@ -10,13 +11,60 @@
 
 using namespace std ;
 
-//#define DEBUG_SNR
-
+/* Deprecated: Old version of loading EXR images.
+ */
 float* loadImage(const std::string& name, int& W, int &H) {
    float* img = nullptr;
    const char* err;
    int ret = LoadEXR(&img, &W, &H, name.c_str(), &err);
    return img;
+}
+
+/* Exception type when loading EXRImages.
+ */
+struct ExceptionEXR : public std::exception {
+	ExceptionEXR(const std::string& filename, const std::string& error) {
+		msg = std::string("Error with file \'") + filename +
+				std::string("\":") +	error;
+	}
+
+	const char* what() const noexcept {
+		return msg.c_str();
+	}
+
+	std::string msg;
+};
+
+/* Loading an EXR image using tinyexr. The image needs to be located at
+ * filename `name`.
+ *
+ * Return the EXRImage if the image can be loaded. If the image cannot
+ * be loaded, an ExceptionEXR is thrown.
+ */
+EXRImage LoadImage(const std::string& name) {
+	const char* input = name.c_str();
+	const char* err;
+
+	EXRImage image;
+	InitEXRImage(&image);
+
+	int ret = ParseMultiChannelEXRHeaderFromFile(&image, input, &err);
+	if (ret != 0) {
+		std::string err_str(err);
+		throw ExceptionEXR(name, err_str);
+	}
+
+	for (int i = 0; i < image.num_channels; i++) {
+		image.requested_pixel_types[i] = TINYEXR_PIXELTYPE_FLOAT;
+	}
+
+	ret = LoadMultiChannelEXRFromFile(&image, input, &err);
+	if (ret != 0) {
+		std::string err_str(err);
+		throw ExceptionEXR(name, err_str);
+	}
+
+	return image;
 }
 
 int b = 0;
@@ -83,7 +131,7 @@ float RMSE(const string& image, const string& reference)
 {
 	int W, H ;
 	float *img1, *img2 ;
-   
+
    img1 = loadImage(reference, W, H);
 	if(img1 == nullptr)
 	{
@@ -98,12 +146,6 @@ float RMSE(const string& image, const string& reference)
 		cerr << "Unable to load the first image" << endl ;
 		return 0 ;
 	}
-
-#ifdef DEBUG_SNR
-	float* temp = new float[W*H] ;
-	for(int k=0; k<W*H; ++k)
-		temp[k] = 0.0f ;
-#endif
 
 	double error_max  = 0.0 ;
 	double error_mean = 0.0 ;
@@ -126,19 +168,11 @@ float RMSE(const string& image, const string& reference)
 			pix_error += pow(img2[(i + W*j)*3+2] - img1[(i + W*j)*3+2], 2);
          pix_error /= 3;
 
-#ifdef DEBUG_SNR
-			temp[i+j*W] = pix_error ;
-#endif
 			error_max  =  fmax(pix_error, error_max) ;
 			error_mean += pix_error;
 		}
 
    error_mean /= double(W * H) ;
-
-#ifdef DEBUG_SNR
-	t_EXR_IO<float>::SaveEXR("temp.exr", W, H, temp, 1) ;
-	delete[] temp ;
-#endif
 
    delete[] img1;
    delete[] img2 ;
