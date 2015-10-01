@@ -99,15 +99,15 @@ float SNR(const string& image, const string& reference)
 	for(int i=b; i<W-b; ++i)
 		for(int j=b; j<H-b; ++j)
 		{
-			error  += pow(img2[(i + W*j)*3+0] - img1[(i + W*j)*3+0], 2) ;
-			error  += pow(img2[(i + W*j)*3+1] - img1[(i + W*j)*3+1], 2) ;
-			error  += pow(img2[(i + W*j)*3+2] - img1[(i + W*j)*3+2], 2) ;
-			signal += pow(img1[(i + W*j)*3+0], 2) ;
-			signal += pow(img1[(i + W*j)*3+1], 2) ;
-			signal += pow(img1[(i + W*j)*3+2], 2) ;
-			smax = fmax(img1[(i+j*W)*3+0], smax) ;
-			smax = fmax(img1[(i+j*W)*3+1], smax) ;
-			smax = fmax(img1[(i+j*W)*3+2], smax) ;
+			error  += pow(img2[(i + W*j)*4+0] - img1[(i + W*j)*4+0], 2) ;
+			error  += pow(img2[(i + W*j)*4+1] - img1[(i + W*j)*4+1], 2) ;
+			error  += pow(img2[(i + W*j)*4+2] - img1[(i + W*j)*4+2], 2) ;
+			signal += pow(img1[(i + W*j)*4+0], 2) ;
+			signal += pow(img1[(i + W*j)*4+1], 2) ;
+			signal += pow(img1[(i + W*j)*4+2], 2) ;
+			smax = fmax(img1[(i+j*W)*4+0], smax) ;
+			smax = fmax(img1[(i+j*W)*4+1], smax) ;
+			smax = fmax(img1[(i+j*W)*4+2], smax) ;
 		}
 	error  /= (float)((W-2*b)*(H-2*b)) ;
 	signal /= (float)((W-2*b)*(H-2*b)) ;
@@ -163,9 +163,9 @@ float RMSE(const string& image, const string& reference)
          }
 
 			float pix_error = 0.0;
-         pix_error += pow(img2[(i + W*j)*3+0] - img1[(i + W*j)*3+0], 2);
-			pix_error += pow(img2[(i + W*j)*3+1] - img1[(i + W*j)*3+1], 2);
-			pix_error += pow(img2[(i + W*j)*3+2] - img1[(i + W*j)*3+2], 2);
+         pix_error += pow(img2[(i + W*j)*4+0] - img1[(i + W*j)*4+0], 2);
+			pix_error += pow(img2[(i + W*j)*4+1] - img1[(i + W*j)*4+1], 2);
+			pix_error += pow(img2[(i + W*j)*4+2] - img1[(i + W*j)*4+2], 2);
          pix_error /= 3;
 
 			error_max  =  fmax(pix_error, error_max) ;
