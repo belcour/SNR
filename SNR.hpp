@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cmath>
+#include <cstring>
 #include <exception>
 using namespace std;
 
@@ -12,15 +13,6 @@ using namespace std;
 
 // Include BOOST
 #include <boost/log/trivial.hpp>
-
-/* Deprecated: Old version of loading EXR images.
- */
-float* loadImage(const std::string& name, int& W, int &H) {
-   float* img = nullptr;
-   const char* err;
-   int ret = LoadEXR(&img, &W, &H, name.c_str(), &err);
-   return img;
-}
 
 /* Exception type when loading EXRImages.
  */
@@ -69,12 +61,6 @@ EXRImage LoadImage(const std::string& name) {
 	return image;
 }
 
-int b = 0;
-void setBorder(int border)
-{
-	b = border ;
-}
-
 /* Requires a MetricClass object. This object must have two methods:
  *     void operator(vector pixelA, vector pixelB)
  *     dict Statistics() const
@@ -98,6 +84,13 @@ float Metric(const std::string& query, const std::string& ref) {
                          std::string("Files do not match"));
    }
 
+   for(int k=0; k<qryImg.num_channels; ++k) {
+      if(strcmp(qryImg.channel_names[k], refImg.channel_names[k]) != 0) {
+         throw ExceptionEXR(ref + std::string(" and ") + ref,
+                            std::string("Have different color channels"));
+      }
+   }
+
    // Create the metric object
    MetricClass metric(qryImg.num_channels);
    std::vector<float> pixelQry, pixelRef;
@@ -110,8 +103,12 @@ float Metric(const std::string& query, const std::string& ref) {
    const int channel = 0;
    for(int i=0; i<N; ++i) {
       for(int k=0; k<qryImg.num_channels; ++k) {
-         pixelQry[k] = (float)qryImg.images[k][i];
-         pixelRef[k] = (float)refImg.images[k][i];
+         // Convert unsigned int pointers to float pointers before
+         // accessing the values.
+         float* qry = (float*)qryImg.images[k];
+         float* ref = (float*)refImg.images[k];
+         pixelQry[k] = qry[i];
+         pixelRef[k] = ref[i];
       }
 
       metric(pixelQry, pixelRef);
@@ -120,7 +117,7 @@ float Metric(const std::string& query, const std::string& ref) {
    return metric.Statistics();
 }
 
-/* Statistics class to compute the average SNR.
+/* Statistics class to compute the average SNR in decibels.
  */
 struct SnrStatistics {
    float signal, error;
@@ -155,119 +152,39 @@ struct SnrStatistics {
    }
 
    float Statistics() const {
-      return signal / error;
+      return 10.0f * log(signal / error);
    }
 };
 
+/* Statistics class to compute the average RMSE per channel.
+ */
+struct RmseStatistics {
+   float sqr_error;
+   unsigned int nb;
 
+   RmseStatistics(int numChannels) {
+      sqr_error = 0.0f;
+      nb        = 0;
+   }
 
-float SNR(const string& image, const string& reference)
-{
-	int W, H ;
-	float *img1, *img2 ;
+   void operator()(const std::vector<float>& qry,
+                   const std::vector<float>& ref) {
+      if(isnan(ref[0]) || isnan(qry[0]) ||
+         isnan(ref[1]) || isnan(qry[1]) ||
+         isnan(ref[2]) || isnan(qry[2])) {
+         BOOST_LOG_TRIVIAL(warning) << "Detecting a NaN! Skipping pixel";
+         return;
+      }
 
-   img1 = loadImage(reference, W, H);
-	if(img1 == nullptr) {
-		BOOST_LOG_TRIVIAL(error) << "Unable to load the reference image";
-		return 0 ;
-	}
+      float avg_error = (pow(ref[0] - qry[0], 2)
+                       + pow(ref[1] - qry[1], 2)
+                       + pow(ref[2] - qry[2], 2)) / 3.0f;
 
-	int Wtemp, Htemp ;
-   img2 = loadImage(image, Wtemp, Htemp);
-	if(img2 == nullptr || W != Wtemp || H != Htemp) {
-		BOOST_LOG_TRIVIAL(error) << "Unable to load the query image";
-		return 0 ;
-	}
+      sqr_error  = (sqr_error*nb  + avg_error) / float(nb+1);
+      ++nb;
+   }
 
-	float error  = 0.0f ;
-	float signal = 0.0f ;
-	float smax   = 0.0f ;
-	for(int i=b; i<W-b; ++i)
-		for(int j=b; j<H-b; ++j) {
-
-         const int index = (i + W*j)*4;
-         if(isnan(img1[index+0]) || isnan(img2[index+0]) ||
-            isnan(img1[index+1]) || isnan(img2[index+1]) ||
-            isnan(img1[index+2]) || isnan(img2[index+2])) {
-            BOOST_LOG_TRIVIAL(warning) << "# DEBUG > Detecting a NaN! Skipping pixel ("
-                                       << i << ", " << j << ")";
-            continue;
-         }
-
-			error  += pow(img2[index+0] - img1[index+0], 2) ;
-			error  += pow(img2[index+1] - img1[index+1], 2) ;
-			error  += pow(img2[index+2] - img1[index+2], 2) ;
-			signal += pow(img1[index+0], 2) ;
-			signal += pow(img1[index+1], 2) ;
-			signal += pow(img1[index+2], 2) ;
-			smax = fmax(img1[index+0], smax) ;
-			smax = fmax(img1[index+1], smax) ;
-			smax = fmax(img1[index+2], smax) ;
-		}
-	error  /= (float)((W-2*b)*(H-2*b)) ;
-	signal /= (float)((W-2*b)*(H-2*b)) ;
-
-	const float snr    = signal / error ;
-	const float psnr   = smax*smax / error ;
-	const float psnrdb = 10 * (log10(smax*smax) - log10(error)) ;
-	const float snrdb  = 10 * (log10(signal) - log10(error)) ;
-
-   /*
-	cout << "SNR = " << snr << endl ;
-	cout << "SNRdb = " <<  snrdb << " db" << endl ;
-
-	cout << "PSNR = " << psnr << endl ;
-	cout << "PSNRdb = " <<  psnrdb << " db" << endl ;
-	*/
-   return snr;
-} ;
-
-float RMSE(const string& image, const string& reference)
-{
-	int W, H ;
-	float *img1, *img2 ;
-
-   img1 = loadImage(reference, W, H);
-	if(img1 == nullptr) {
-		BOOST_LOG_TRIVIAL(error) << "Unable to load the reference image";
-		return 0 ;
-	}
-
-	int Wtemp, Htemp ;
-   img2 = loadImage(image, Wtemp, Htemp);
-	if(img2 == nullptr || W != Wtemp || H != Htemp) {
-		BOOST_LOG_TRIVIAL(error) << "Unable to load the query image";
-		return 0 ;
-	}
-
-	double error_max  = 0.0 ;
-	double error_mean = 0.0 ;
-	for(int i=0; i<W; ++i)
-		for(int j=0; j<H; ++j) {
-
-         const int index = (i + W*j)*4;
-         if(isnan(img1[index+0]) || isnan(img2[index+0]) ||
-            isnan(img1[index+1]) || isnan(img2[index+1]) ||
-            isnan(img1[index+2]) || isnan(img2[index+2])) {
-            BOOST_LOG_TRIVIAL(warning) << "# DEBUG > Detecting a NaN! Skipping pixel ("
-                                       << i << ", " << j << ")";
-            continue;
-         }
-
-			float pix_error = 0.0;
-         pix_error += pow(img2[index+0] - img1[index+0], 2);
-			pix_error += pow(img2[index+1] - img1[index+1], 2);
-			pix_error += pow(img2[index+2] - img1[index+2], 2);
-         pix_error /= 3;
-
-			error_max  =  fmax(pix_error, error_max) ;
-			error_mean += pix_error;
-		}
-
-   error_mean /= double(W * H) ;
-
-   delete[] img1;
-   delete[] img2 ;
-
-	return error_mean ;
-} ;
+   float Statistics() const {
+      return sqrt(sqr_error);
+   }
+};

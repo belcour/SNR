@@ -17,10 +17,11 @@ int main(int argc, char** argv)
 	//float snr = SNR(input_file, ref_file) ;
 	try {
 	   float snr = Metric<SnrStatistics>(input_file, ref_file);
-	   std::cout << "SNR  = " << snr << std::endl;
+	   std::cout << "SNR  = " << snr << "db" << std::endl;
 
-		float rmse = RMSE(input_file, ref_file) ;
+		float rmse = Metric<RmseStatistics>(input_file, ref_file);
 	   std::cout << "RMSE = " << rmse << std::endl;
+
 	} catch (const std::exception& e) {
 		BOOST_LOG_TRIVIAL(fatal) << e.what();
 		return EXIT_FAILURE;
