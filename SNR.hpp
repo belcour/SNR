@@ -27,7 +27,7 @@ float* loadImage(const std::string& name, int& W, int &H) {
 struct ExceptionEXR : public std::exception {
 	ExceptionEXR(const std::string& filename, const std::string& error) {
 		msg = std::string("Error with file \'") + filename +
-				std::string("\":") +	error;
+				std::string("\': ") +	error;
 	}
 
 	const char* what() const noexcept {
@@ -99,8 +99,8 @@ float Metric(const std::string& query, const std::string& ref) {
    }
 
    // Create the metric object
-   MetricClass metric;
-   std::vector pixelQry, pixelImg;
+   MetricClass metric(qryImg.num_channels);
+   std::vector<float> pixelQry, pixelRef;
    pixelQry.reserve(qryImg.num_channels);
    pixelRef.reserve(qryImg.num_channels);
 
@@ -109,9 +109,9 @@ float Metric(const std::string& query, const std::string& ref) {
    const int N = qryImg.width * qryImg.height;
    const int channel = 0;
    for(int i=0; i<N; ++i) {
-      for(int channel=0; channel<qryImg.num_channels; ++channel) {
-         pixelQry[k] = float(qryImg.images[channel][i]);
-         pixelRef[k] = float(refImg.images[channel][i]);
+      for(int k=0; k<qryImg.num_channels; ++k) {
+         pixelQry[k] = (float)qryImg.images[k][i];
+         pixelRef[k] = (float)refImg.images[k][i];
       }
 
       metric(pixelQry, pixelRef);
@@ -119,6 +119,47 @@ float Metric(const std::string& query, const std::string& ref) {
 
    return metric.Statistics();
 }
+
+/* Statistics class to compute the average SNR.
+ */
+struct SnrStatistics {
+   float signal, error;
+   unsigned int nb;
+
+   SnrStatistics(int numChannels) {
+      signal = 0.0f;
+      error  = 0.0f;
+      nb     = 0;
+   }
+
+   void operator()(const std::vector<float>& qry,
+                   const std::vector<float>& ref) {
+      if(isnan(ref[0]) || isnan(qry[0]) ||
+         isnan(ref[1]) || isnan(qry[1]) ||
+         isnan(ref[2]) || isnan(qry[2])) {
+         BOOST_LOG_TRIVIAL(warning) << "Detecting a NaN! Skipping pixel";
+         return;
+      }
+
+      float avg_error = (pow(ref[0] - qry[0], 2)
+                       + pow(ref[1] - qry[1], 2)
+                       + pow(ref[2] - qry[2], 2)) / 3.0f;
+
+      float avg_sign  = (pow(ref[0], 2)
+                       + pow(ref[1], 2)
+                       + pow(ref[2], 2)) / 3.0f;
+
+      error  = (error*nb  + avg_error) / float(nb+1);
+      signal = (signal*nb + avg_sign)  / float(nb+1);
+      ++nb;
+   }
+
+   float Statistics() const {
+      return signal / error;
+   }
+};
+
+
 
 float SNR(const string& image, const string& reference)
 {
