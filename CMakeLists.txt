@@ -7,8 +7,8 @@ add_executable (SNR SNR.cpp)
 
 find_package(OpenMP)
 if ( OPENMP_FOUND )
-   target_compile_options(OpenMP_CXX_FLAGS)
-   set_target_properties(SNR LINK_FLAGS OpenMP_CXX_FLAGS)
+	target_compile_options(SNR PUBLIC OpenMP_CXX_FLAGS)
+	set_target_properties(SNR PROPERTIES LINK_FLAGS OpenMP_CXX_FLAGS)
 endif( OPENMP_FOUND )
 
 find_package(Boost COMPONENTS log REQUIRED)
